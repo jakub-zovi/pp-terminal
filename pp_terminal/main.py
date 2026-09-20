@@ -42,6 +42,7 @@ from pp_terminal.output.strategy import OutputFormat
 from pp_terminal.utils.plugins import load_command_plugins
 from pp_terminal.data.pp_portfolio_builder import PpPortfolioBuilder, CachedPpPortfolioBuilder
 from pp_terminal.data.xml_anonymizer import XmlAnonymizer
+from pp_terminal.commands.import_broker import app as import_app
 from pp_terminal.mcp_server import start_mcp
 from . import __version__
 
@@ -66,6 +67,7 @@ class ErrorHandlingGroup(TyperGroup):
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich", cls=ErrorHandlingGroup)
 app.add_typer(typer.Typer(no_args_is_help=True), name="simulate", help="Run simulations on the portfolio data, like share sells or German Vorabpauschale.")
 app.add_typer(typer.Typer(no_args_is_help=True), name="view", help="View details about portfolio entities like accounts or securities.")
+app.add_typer(import_app, name="import", help="Import broker transaction exports into a new Portfolio Performance XML file.")
 
 # init default logging (this is e.g. import for errors during command plugin load)
 logging.basicConfig(level=logging.WARN, format="%(message)s", datefmt="[%X]",
@@ -135,6 +137,11 @@ def main(  # pylint: disable=too-many-arguments,too-many-positional-arguments,to
 
     # commands like "init" bootstrap a config and thus need neither a file nor a portfolio
     if ctx.invoked_subcommand == "init":
+        return
+
+    if ctx.invoked_subcommand == "import":
+        if file is not None:
+            ctx.obj = SimpleNamespace(source_file=file, output=create_strategy(output), config=get_config(), verbose=verbose or False)
         return
 
     if verbose:

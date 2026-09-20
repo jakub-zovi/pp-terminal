@@ -1,0 +1,51 @@
+<client id="1">
+  <version>66</version>
+  <baseCurrency>EUR</baseCurrency>
+  <securities>
+    <security id="2">
+      <uuid>import-security-uuid-001</uuid>
+      <name>Import Test Security</name>
+      <currencyCode>USD</currencyCode>
+      <isin>US09175A2069</isin>
+      <tickerSymbol>BMNR</tickerSymbol>
+      <feed>MANUAL</feed>
+      <prices/>
+      <attributes><map/></attributes>
+      <events/>
+      <isRetired>false</isRetired>
+      <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+    </security>
+  </securities>
+  <watchlists/>
+  <accounts>
+    <account id="3">
+      <uuid>import-cash-uuid-001</uuid>
+      <name>Test Cash</name>
+      <currencyCode>USD</currencyCode>
+      <isRetired>false</isRetired>
+      <transactions/>
+      <attributes><map/></attributes>
+      <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+    </account>
+  </accounts>
+  <portfolios>
+    <portfolio id="4">
+      <uuid>import-portfolio-uuid-001</uuid>
+      <name>Test Depot</name>
+      <isRetired>false</isRetired>
+      <referenceAccount reference="3"/>
+      <transactions/>
+      <attributes><map/></attributes>
+      <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+    </portfolio>
+  </portfolios>
+  <plans/>
+  <taxonomies/>
+  <dashboards/>
+  <properties/>
+  <settings>
+    <bookmarks/>
+    <attributeTypes/>
+    <configurationSets/>
+  </settings>
+</client>

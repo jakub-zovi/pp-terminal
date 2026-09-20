@@ -1,0 +1,2 @@
+"ClientAccountID","CurrencyPrimary","AssetClass","Symbol","Description","TradeID","DateTime","TransactionType","Quantity","TradePrice","TradeMoney","Proceeds","Taxes","IBCommission","IBCommissionCurrency","NetCash","Buy/Sell","ISIN"
+"U15644339","USD","STK","BMNR","BITMINE IMMERSION TECHNOLOGI","1576776673","20260911;104453","ExchTrade","-4","26.045","-104.18","104.18","0","-0.353995358","USD","103.826004642","SELL","US09175A2069"
