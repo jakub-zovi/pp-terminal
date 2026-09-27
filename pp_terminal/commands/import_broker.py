@@ -26,18 +26,25 @@ from typing_extensions import Annotated
 
 from pp_terminal.data.broker_import.importer import import_transactions
 from pp_terminal.data.broker_import.models import ImportReport
+from pp_terminal.data.ethereum_wallet_import import classify_ethereum_wallet_exports
+from pp_terminal.data.portfolio_transfer_import import (
+    PortfolioTransferImportReport,
+    import_portfolio_transfer_candidates,
+    import_portfolio_transfers,
+)
 from pp_terminal.exceptions import InputError
 
 app = typer.Typer(no_args_is_help=True)
 console = Console()
 
 
-def _print_report(report: ImportReport) -> None:
+def _print_report(report: ImportReport | PortfolioTransferImportReport) -> None:
     console.print(f"parsed: {report.parsed}")
     console.print(f"duplicates: {report.duplicates}")
     console.print(f"unsupported: {report.unsupported}")
     console.print(f"to_import: {report.to_import}")
-    console.print(f"expected_net_cash_delta: {report.expected_net_cash_delta}")
+    if isinstance(report, ImportReport):
+        console.print(f"expected_net_cash_delta: {report.expected_net_cash_delta}")
     if report.output_file is not None:
         console.print(f"output: {report.output_file}")
 
@@ -68,5 +75,67 @@ def transactions(
         output_file=output_file,
         dry_run=dry_run,
         ticker_mappings=mappings,
+    )
+    _print_report(report)
+
+
+@app.command(name='portfolio-transfers')
+def portfolio_transfers(
+    ctx: typer.Context,
+    transfer_export: Annotated[Path, typer.Argument(exists=True, file_okay=True, dir_okay=False, readable=True)],
+    output_file: Annotated[Path | None, typer.Option('--output', help='Output Portfolio Performance XML file. The source file is never modified.')] = None,
+    dry_run: Annotated[bool, typer.Option(help='Preview import without writing XML.')] = False,
+) -> None:
+    """Import generic portfolio transfer CSVs into a new XML file."""
+
+    source_file = cast(Path, ctx.obj.source_file)
+    if not dry_run and output_file is None:
+        raise InputError('pass --output or use --dry-run')
+
+    report = import_portfolio_transfers(
+        source_file=source_file,
+        transfer_export=transfer_export,
+        output_file=output_file,
+        dry_run=dry_run,
+    )
+    _print_report(report)
+
+
+@app.command(name='ethereum-wallets')
+def ethereum_wallets(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+    ctx: typer.Context,
+    exodus_csv: Annotated[Path, typer.Option('--exodus-csv', exists=True, file_okay=True, dir_okay=False, readable=True)],
+    trezor_csv: Annotated[Path, typer.Option('--trezor-csv', exists=True, file_okay=True, dir_okay=False, readable=True)],
+    exodus_account: Annotated[str, typer.Option()],
+    trezor_account: Annotated[str, typer.Option()],
+    stake_account: Annotated[str, typer.Option()],
+    stake_address: Annotated[str, typer.Option()],
+    security: Annotated[str, typer.Option()] = 'ETH-EUR',
+    staking_return_txid: Annotated[list[str] | None, typer.Option(help='Trezor txid to treat as a staking return into the Trezor account.')] = None,
+    output_file: Annotated[Path | None, typer.Option('--output', help='Output Portfolio Performance XML file. The source file is never modified.')] = None,
+    dry_run: Annotated[bool, typer.Option(help='Preview import without writing XML.')] = False,
+) -> None:
+    """Import paired Exodus/Trezor Ethereum wallet exports using generic portfolio transfers."""
+
+    source_file = cast(Path, ctx.obj.source_file)
+    if not dry_run and output_file is None:
+        raise InputError('pass --output or use --dry-run')
+    candidates, ignored = classify_ethereum_wallet_exports(
+        exodus_csv=exodus_csv,
+        trezor_csv=trezor_csv,
+        exodus_account=exodus_account,
+        trezor_account=trezor_account,
+        stake_account=stake_account,
+        stake_address=stake_address,
+        security=security,
+        staking_return_txids=set(staking_return_txid or []),
+    )
+    for item in ignored:
+        console.print(f"ignored: {item}")
+    report = import_portfolio_transfer_candidates(
+        source_file=source_file,
+        candidates=candidates,
+        output_file=output_file,
+        dry_run=dry_run,
     )
     _print_report(report)
