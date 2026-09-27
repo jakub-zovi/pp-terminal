@@ -130,7 +130,8 @@ def test_import_portfolio_transfer_csv_writes_valid_transfer_and_fee(tmp_path: P
     imported = output_file.read_text(encoding='utf-8')
     assert '<crossEntry class="portfolio-transfer"' in imported
     assert '<portfolioFrom reference="4"/>' in imported
-    assert '<portfolioTo reference="6"/>' in imported
+    assert '<portfolioTo id="6">' in imported
+    assert '<portfolio reference="6"/>' in imported
     assert '<type>TRANSFER_OUT</type>' in imported
     assert '<type>TRANSFER_IN</type>' in imported
     assert '<type>DELIVERY_OUTBOUND</type>' in imported
