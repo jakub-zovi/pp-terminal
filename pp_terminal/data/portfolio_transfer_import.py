@@ -142,6 +142,10 @@ def _append_transfer(root: etree._Element, candidate: PortfolioTransferCandidate
         _append_tail(transaction_to, 'TRANSFER_IN')
     else:
         etree.SubElement(cross_entry, 'transactionTo', reference=str(target_id))
+    if source_outer:
+        _add_transaction_reference(target, target_id)
+    else:
+        _add_transaction_reference(source, source_id)
     _append_tail(outer_transaction, 'TRANSFER_OUT' if source_outer else 'TRANSFER_IN')
 
 
@@ -184,10 +188,28 @@ def _fee_candidate(candidate: PortfolioTransferCandidate) -> PortfolioTransferCa
 
 
 def _find_portfolio(root: etree._Element, name: str) -> etree._Element:
-    for portfolio in root.iter():
-        if portfolio.tag in {'portfolio', 'portfolioFrom', 'portfolioTo'} and portfolio.get('id') is not None and portfolio.findtext('name') == name:
-            return portfolio
+    portfolio_ids = _top_level_portfolio_ids(root)
+    matches = [
+        element for element in root.iter()
+        if element.tag in {'portfolio', 'portfolioFrom', 'portfolioTo'}
+        and element.get('id') in portfolio_ids
+        and element.findtext('name') == name
+    ]
+    if matches:
+        return matches[0]
     raise InputError(f'Portfolio account not found: {name}')
+
+
+def _top_level_portfolio_ids(root: etree._Element) -> set[str]:
+    portfolios = root.find('portfolios')
+    if portfolios is None:
+        raise InputError('No portfolios section found')
+    ids = set()
+    for portfolio in portfolios.findall('portfolio'):
+        portfolio_id = portfolio.get('id') or portfolio.get('reference')
+        if portfolio_id is not None:
+            ids.add(portfolio_id)
+    return ids
 
 
 def _find_security(root: etree._Element, security_name: str) -> etree._Element:
@@ -207,6 +229,10 @@ def _transactions_element(portfolio: etree._Element) -> etree._Element:
     if transactions is None:
         transactions = etree.SubElement(portfolio, 'transactions')
     return transactions
+
+
+def _add_transaction_reference(portfolio: etree._Element, transaction_id: int) -> None:
+    etree.SubElement(_transactions_element(portfolio), 'portfolio-transaction', reference=str(transaction_id))
 
 
 def _appears_after(root: etree._Element, first: etree._Element, second: etree._Element) -> bool:

@@ -36,6 +36,40 @@ def _xml_fixture(path: Path) -> None:
     </account>
   </accounts>
   <portfolios>
+    <portfolio id="99">
+      <uuid>container-portfolio</uuid>
+      <name>Container</name>
+      <isRetired>false</isRetired>
+      <referenceAccount reference="3"/>
+      <transactions>
+        <portfolio-transaction id="100">
+          <uuid>container-transaction</uuid>
+          <date>2025-12-31T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>0</amount>
+          <security reference="2"/>
+          <crossEntry class="portfolio-transfer" id="101">
+            <portfolioFrom reference="99"/>
+            <transactionFrom reference="100"/>
+            <portfolioTo id="102">
+              <uuid>nested-target-must-not-be-used</uuid>
+              <name>Target Wallet</name>
+              <isRetired>false</isRetired>
+              <referenceAccount reference="3"/>
+              <transactions/>
+              <attributes><map/></attributes>
+              <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+            </portfolioTo>
+            <transactionTo reference="103"/>
+          </crossEntry>
+          <shares>0</shares>
+          <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+          <type>TRANSFER_OUT</type>
+        </portfolio-transaction>
+      </transactions>
+      <attributes><map/></attributes>
+      <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+    </portfolio>
     <portfolio id="4">
       <uuid>source-portfolio</uuid>
       <name>Source Wallet</name>
@@ -101,6 +135,8 @@ def test_import_portfolio_transfer_csv_writes_valid_transfer_and_fee(tmp_path: P
     assert '<type>TRANSFER_IN</type>' in imported
     assert '<type>DELIVERY_OUTBOUND</type>' in imported
     assert 'tx-1' in imported
+    nested_section = imported.split('<uuid>nested-target-must-not-be-used</uuid>', 1)[1].split('</portfolioTo>', 1)[0]
+    assert 'tx-1' not in nested_section
 
 
 def test_import_portfolio_transfer_csv_dry_run_reports_without_writing(tmp_path: Path) -> None:
