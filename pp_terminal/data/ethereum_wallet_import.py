@@ -42,14 +42,14 @@ def classify_ethereum_wallet_exports(
         trezor = trezor_eth[0]
         if exodus['TYPE'] == 'withdrawal' and trezor['Type'] == 'RECV':
             amount = abs(_decimal(exodus['OUTAMOUNT']))
-            candidates.extend(_delivery_pair_with_fee(
+            candidates.extend(_transfer_with_fee(
                 txid, _exodus_date(exodus), exodus_account, trezor_account, security, amount,
                 _decimal(trezor.get('Fiat (EUR)')), abs(_decimal(exodus['FEEAMOUNT'])), 'Exodus to Trezor'
             ))
             seen.add(txid)
         elif exodus['TYPE'] == 'deposit' and trezor['Type'] == 'SENT':
             amount = _decimal(exodus['INAMOUNT'])
-            candidates.extend(_delivery_pair_with_fee(
+            candidates.extend(_transfer_with_fee(
                 txid, _trezor_date(trezor), trezor_account, exodus_account, security, amount,
                 _decimal(trezor.get('Fiat (EUR)')), _decimal(trezor.get('Fee')), 'Trezor to Exodus'
             ))
@@ -70,15 +70,15 @@ def classify_ethereum_wallet_exports(
         amount = _decimal(row['Amount'])
         fee = _decimal(row.get('Fee'))
         if txid in staking_return_txids and amount > 0:
-            candidates.extend(_delivery_pair(
-                txid, _trezor_date(row), stake_account, trezor_account, security, amount,
+            candidates.append(_candidate(
+                txid, _trezor_date(row), 'TRANSFER', stake_account, trezor_account, security, amount,
                 _decimal(row.get('Fiat (EUR)')), 'Everstake to Trezor'
             ))
         elif txid in staking_return_txids and fee > 0:
             candidates.append(_candidate(f'{txid}:fee', _trezor_date(row), 'DELIVERY_OUTBOUND', trezor_account, None, security, fee, Decimal('0'), 'Everstake withdrawal network fee'))
         elif row['Type'] == 'SENT' and row['Address'].lower() == normalized_stake_address:
             if amount > 0:
-                candidates.extend(_delivery_pair_with_fee(
+                candidates.extend(_transfer_with_fee(
                     txid, _trezor_date(row), trezor_account, stake_account, security, amount,
                     _decimal(row.get('Fiat (EUR)')), fee, 'Trezor to Everstake'
                 ))
@@ -88,7 +88,7 @@ def classify_ethereum_wallet_exports(
     return candidates, ignored
 
 
-def _delivery_pair_with_fee(
+def _transfer_with_fee(
     txid: str,
     date: datetime,
     source: str,
@@ -99,26 +99,10 @@ def _delivery_pair_with_fee(
     fee: Decimal,
     note: str,
 ) -> list[PortfolioTransferCandidate]:
-    candidates = _delivery_pair(txid, date, source, target, security, amount, gross_amount, note)
+    candidates = [_candidate(txid, date, 'TRANSFER', source, target, security, amount, gross_amount, note)]
     if fee:
         candidates.append(_candidate(f'{txid}:fee', date, 'DELIVERY_OUTBOUND', source, None, security, fee, Decimal('0'), 'Ethereum network fee'))
     return candidates
-
-
-def _delivery_pair(
-    txid: str,
-    date: datetime,
-    source: str,
-    target: str,
-    security: str,
-    amount: Decimal,
-    gross_amount: Decimal,
-    note: str,
-) -> list[PortfolioTransferCandidate]:
-    return [
-        _candidate(f'{txid}:out', date, 'DELIVERY_OUTBOUND', source, None, security, amount, gross_amount, note),
-        _candidate(f'{txid}:in', date, 'DELIVERY_INBOUND', target, None, security, amount, gross_amount, note),
-    ]
 
 
 def _candidate(

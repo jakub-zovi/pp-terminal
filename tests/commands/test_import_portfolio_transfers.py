@@ -51,7 +51,7 @@ def _xml_fixture(path: Path) -> None:
           <crossEntry class="portfolio-transfer" id="101">
             <portfolioFrom reference="99"/>
             <transactionFrom reference="100"/>
-            <portfolioTo id="102">
+            <portfolioTo id="6">
               <uuid>nested-target-must-not-be-used</uuid>
               <name>Target Wallet</name>
               <isRetired>false</isRetired>
@@ -117,7 +117,8 @@ def test_import_portfolio_transfer_csv_writes_valid_transfer_and_fee(tmp_path: P
     csv_file = tmp_path / 'transfers.csv'
     csv_file.write_text(
         'type,date,source_portfolio,target_portfolio,security,shares,amount,currency,fee_shares,external_id,note\n'
-        'TRANSFER,2026-01-02T12:00,Source Wallet,Target Wallet,ETH-EUR,0.25,500,EUR,0.001,tx-1,Wallet transfer\n',
+        'TRANSFER,2026-01-02T12:00,Source Wallet,Target Wallet,ETH-EUR,0.25,500,EUR,0.001,tx-1,Wallet transfer\n'
+        'TRANSFER,2026-01-03T12:00,Source Wallet,Target Wallet,ETH-EUR,0.10,200,EUR,0,tx-2,Wallet transfer 2\n',
         encoding='utf-8',
     )
     output_file = tmp_path / 'imported.xml'
@@ -131,9 +132,11 @@ def test_import_portfolio_transfer_csv_writes_valid_transfer_and_fee(tmp_path: P
     assert '<crossEntry class="portfolio-transfer"' in imported
     assert '<portfolioFrom reference="4"/>' in imported
     assert '<portfolioTo id="6">' in imported
-    embedded_target = imported.split('<portfolioTo id="6">', 1)[1].split('</portfolioTo>', 1)[0]
+    assert imported.count('<portfolioTo id="6">') == 2
+    embedded_target = imported.rsplit('<portfolioTo id="6">', 1)[1].split('</portfolioTo>', 1)[0]
     assert 'external_id=tx-1' in embedded_target
-    assert '<transactionTo reference="105"/>' in imported
+    assert 'external_id=tx-2' in embedded_target
+    assert '<transactionTo reference=' in imported
     assert '<portfolio reference="6"/>' in imported
     assert '<type>TRANSFER_OUT</type>' in imported
     assert '<type>TRANSFER_IN</type>' in imported

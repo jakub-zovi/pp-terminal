@@ -155,7 +155,7 @@ def _append_portfolio_link(root: etree._Element, parent: etree._Element, tag: st
         _replace_top_level_portfolio_with_reference(root, portfolio.get('id'))
         return definition
     etree.SubElement(parent, tag, reference=portfolio.get('id'))
-    return None
+    return portfolio
 
 
 def _append_transfer_leg(
@@ -228,6 +228,18 @@ def _fee_candidate(candidate: PortfolioTransferCandidate) -> PortfolioTransferCa
 
 
 def _find_portfolio(root: etree._Element, name: str) -> etree._Element:
+    portfolios = root.find('portfolios')
+    if portfolios is None:
+        raise InputError('No portfolios section found')
+
+    top_level_match = next(
+        (portfolio for portfolio in portfolios.findall('portfolio')
+         if portfolio.get('id') is not None and portfolio.findtext('name') == name),
+        None,
+    )
+    if top_level_match is not None:
+        return top_level_match
+
     portfolio_ids = _top_level_portfolio_ids(root)
     matches = [
         element for element in root.iter()
@@ -236,7 +248,7 @@ def _find_portfolio(root: etree._Element, name: str) -> etree._Element:
         and element.findtext('name') == name
     ]
     if matches:
-        return matches[0]
+        return matches[-1]
     raise InputError(f'Portfolio account not found: {name}')
 
 

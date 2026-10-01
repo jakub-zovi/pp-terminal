@@ -29,20 +29,14 @@ def test_classify_ethereum_wallet_exports_matches_internal_transfer(tmp_path: Pa
         staking_return_txids=set(),
     )
 
-    assert len(candidates) == 3
-    outbound = candidates[0]
-    inbound = candidates[1]
-    fee = candidates[2]
-    assert outbound.transaction_type == 'DELIVERY_OUTBOUND'
-    assert outbound.source_portfolio == 'Exodus'
-    assert outbound.target_portfolio is None
-    assert outbound.shares == Decimal('0.5')
-    assert outbound.external_id == 'tx-1:out'
-    assert inbound.transaction_type == 'DELIVERY_INBOUND'
-    assert inbound.source_portfolio == 'Trezor'
-    assert inbound.target_portfolio is None
-    assert inbound.shares == Decimal('0.5')
-    assert inbound.external_id == 'tx-1:in'
+    assert len(candidates) == 2
+    transfer = candidates[0]
+    fee = candidates[1]
+    assert transfer.transaction_type == 'TRANSFER'
+    assert transfer.source_portfolio == 'Exodus'
+    assert transfer.target_portfolio == 'Trezor'
+    assert transfer.shares == Decimal('0.5')
+    assert transfer.external_id == 'tx-1'
     assert fee.transaction_type == 'DELIVERY_OUTBOUND'
     assert fee.shares == Decimal('0.001')
     assert not ignored
