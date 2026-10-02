@@ -19,7 +19,6 @@
 
 import logging
 from datetime import datetime
-from pathlib import Path
 from typing import Annotated, Callable, cast
 
 import typer
@@ -28,7 +27,7 @@ from pp_terminal.domain.portfolio import Portfolio, get_security_by_id
 from pp_terminal.domain.portfolio_snapshot import PortfolioSnapshot
 from pp_terminal.utils.config import Config
 from pp_terminal.validation.engine import ValidationResult, configured_rule_types, validate_accounts, validate_securities
-from pp_terminal.validation.app_compatibility import repair_app_compatibility, validate_app_compatibility
+from pp_terminal.validation.app_compatibility import validate_app_compatibility
 from pp_terminal.validation.rules import known_rule_types
 
 app = typer.Typer()
@@ -50,18 +49,8 @@ def _log_violations(results: dict[str, ValidationResult], describe_entity: Calla
 def run_validations(
         ctx: typer.Context,
         rule: Annotated[list[str] | None, typer.Option('--rule', help='Run only rules of this type (repeatable); defaults to all configured rules.')] = None,
-        repair_output: Annotated[Path | None, typer.Option('--repair-output', help='Write an app-compatible XML repair and validate its reference order.')] = None,
 ) -> None:
     """Run configured validation rules on the portfolio data."""
-    if repair_output is not None:
-        violations = repair_app_compatibility(ctx.obj.source_file, repair_output)
-        if violations:
-            for violation in violations:
-                log.error('Portfolio Performance app compatibility: %s', violation)
-            raise typer.Exit(1)
-        log.info('Wrote app-compatible XML to %s', repair_output)
-        return
-
     portfolio = cast(Portfolio, ctx.obj.portfolio)
     config = cast(Config, ctx.obj.config)
     compatibility_violations = validate_app_compatibility(ctx.obj.source_file)
