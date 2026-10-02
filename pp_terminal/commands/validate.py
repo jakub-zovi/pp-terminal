@@ -27,6 +27,7 @@ from pp_terminal.domain.portfolio import Portfolio, get_security_by_id
 from pp_terminal.domain.portfolio_snapshot import PortfolioSnapshot
 from pp_terminal.utils.config import Config
 from pp_terminal.validation.engine import ValidationResult, configured_rule_types, validate_accounts, validate_securities
+from pp_terminal.validation.app_compatibility import validate_app_compatibility
 from pp_terminal.validation.rules import known_rule_types
 
 app = typer.Typer()
@@ -52,6 +53,11 @@ def run_validations(
     """Run configured validation rules on the portfolio data."""
     portfolio = cast(Portfolio, ctx.obj.portfolio)
     config = cast(Config, ctx.obj.config)
+    compatibility_violations = validate_app_compatibility(ctx.obj.source_file)
+    for violation in compatibility_violations:
+        log.error('Portfolio Performance app compatibility: %s', violation)
+    if compatibility_violations:
+        raise typer.Exit(1)
 
     rule_types = set(rule) if rule else None
     if rule_types is not None:
