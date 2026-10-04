@@ -1,8 +1,10 @@
 from pathlib import Path
 
+from lxml import etree
 from typer.testing import CliRunner
 
 from pp_terminal.main import app
+from pp_terminal.validation.app_compatibility import validate_app_compatibility
 
 
 def _xml_fixture(path: Path) -> None:
@@ -52,11 +54,23 @@ def _xml_fixture(path: Path) -> None:
             <portfolioFrom reference="99"/>
             <transactionFrom reference="100"/>
             <portfolioTo id="6">
-              <uuid>nested-target-must-not-be-used</uuid>
+              <uuid>target-portfolio</uuid>
               <name>Target Wallet</name>
               <isRetired>false</isRetired>
               <referenceAccount reference="3"/>
-              <transactions/>
+              <transactions>
+                <portfolio-transaction id="103">
+                  <uuid>container-transaction-in</uuid>
+                  <date>2025-12-31T00:00</date>
+                  <currencyCode>EUR</currencyCode>
+                  <amount>0</amount>
+                  <security reference="2"/>
+                  <crossEntry class="portfolio-transfer" reference="101"/>
+                  <shares>0</shares>
+                  <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+                  <type>TRANSFER_IN</type>
+                </portfolio-transaction>
+              </transactions>
               <attributes><map/></attributes>
               <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
             </portfolioTo>
@@ -91,15 +105,7 @@ def _xml_fixture(path: Path) -> None:
       <attributes><map/></attributes>
       <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
     </portfolio>
-    <portfolio id="6">
-      <uuid>target-portfolio</uuid>
-      <name>Target Wallet</name>
-      <isRetired>false</isRetired>
-      <referenceAccount reference="3"/>
-      <transactions/>
-      <attributes><map/></attributes>
-      <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
-    </portfolio>
+    <portfolio reference="6"/>
   </portfolios>
   <plans/>
   <taxonomies/>
@@ -128,22 +134,26 @@ def test_import_portfolio_transfer_csv_writes_valid_transfer_and_fee(tmp_path: P
     ])
 
     assert result.exit_code == 0, result.output
-    imported = output_file.read_text(encoding='utf-8')
-    assert '<crossEntry class="portfolio-transfer"' in imported
-    assert '<portfolioFrom reference="4"/>' in imported
-    assert '<portfolioTo id="6">' in imported
-    assert imported.count('<portfolioTo id="6">') == 2
-    embedded_target = imported.rsplit('<portfolioTo id="6">', 1)[1].split('</portfolioTo>', 1)[0]
-    assert 'external_id=tx-1' in embedded_target
-    assert 'external_id=tx-2' in embedded_target
-    assert '<transactionTo reference=' in imported
-    assert '<portfolio reference="6"/>' in imported
-    assert '<type>TRANSFER_OUT</type>' in imported
-    assert '<type>TRANSFER_IN</type>' in imported
-    assert '<type>DELIVERY_OUTBOUND</type>' in imported
-    assert 'tx-1' in imported
-    nested_section = imported.split('<uuid>nested-target-must-not-be-used</uuid>', 1)[1].split('</portfolioTo>', 1)[0]
-    assert 'tx-1' not in nested_section
+    assert not validate_app_compatibility(output_file)
+    root = etree.parse(str(output_file)).getroot()  # pylint: disable=c-extension-no-member
+    assert _legs(root, 'Source Wallet') == [('TRANSFER_OUT', 'tx-1'), ('DELIVERY_OUTBOUND', 'tx-1:fee'), ('TRANSFER_OUT', 'tx-2')]
+    assert _legs(root, 'Target Wallet') == [('TRANSFER_IN', 'tx-1'), ('TRANSFER_IN', 'tx-2')]
+    assert sum(1 for element in root.iter('portfolio', 'portfolioFrom', 'portfolioTo') if element.findtext('uuid') == 'target-portfolio') == 1
+
+    accounts = runner.invoke(app, ['--file', str(output_file), '--no-cache', '--output', 'json', 'view', 'securities', '--in-stock'])
+    assert accounts.exit_code == 0, accounts.output
+
+
+def _legs(root: etree._Element, name: str) -> list[tuple[str, str]]:
+    definition = next(element for element in root.iter('portfolio', 'portfolioFrom', 'portfolioTo') if element.get('id') and element.findtext('name') == name)
+    by_id = {element.get('id'): element for element in root.iter() if element.get('id')}
+    legs = []
+    for entry in definition.find('transactions'):
+        transaction = by_id[entry.get('id') or entry.get('reference')]
+        note = transaction.findtext('note') or ''
+        if 'external_id=' in note:
+            legs.append((transaction.findtext('type'), note.split('external_id=', 1)[1]))
+    return legs
 
 
 def test_import_portfolio_transfer_csv_dry_run_reports_without_writing(tmp_path: Path) -> None:

@@ -4,7 +4,6 @@
     This file is part of pp-terminal.
 """
 # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-instance-attributes,c-extension-no-member,duplicate-code,too-many-locals
-import copy
 import csv
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -14,7 +13,9 @@ from uuid import uuid4
 
 from lxml import etree
 
+from pp_terminal.data.xstream_id_references import reorder_id_references
 from pp_terminal.exceptions import InputError
+from pp_terminal.validation.app_compatibility import find_app_compatibility_violations
 
 _MONEY_SCALE = Decimal('100')
 _SHARE_SCALE = Decimal('100000000')
@@ -66,7 +67,11 @@ def import_portfolio_transfer_candidates(
             raise InputError(f'Output file {output_file} already exists')
         for candidate in to_import:
             _append_candidate(root, candidate)
-        tree.write(str(output_file), encoding='utf-8', xml_declaration=False, pretty_print=True)
+        serialized = reorder_id_references(root)
+        violations = find_app_compatibility_violations(serialized)
+        if violations:
+            raise InputError('Refusing to write XML Portfolio Performance would reject: ' + '; '.join(violations[:5]))
+        etree.ElementTree(serialized).write(str(output_file), encoding='utf-8', xml_declaration=False)
 
     return PortfolioTransferImportReport(
         parsed=len(candidates),
@@ -117,27 +122,23 @@ def _append_transfer(root: etree._Element, candidate: PortfolioTransferCandidate
     source = _find_portfolio(root, candidate.source_portfolio)
     target = _find_portfolio(root, candidate.target_portfolio or '')
     source_id = _next_id(root)
-    cross_id = _next_id(root, source_id)
-    target_id = _next_id(root, cross_id)
+    cross_id = source_id + 1
+    target_id = source_id + 2
     note = _note(candidate)
 
-    source_outer = not _appears_after(root, source, target)
-    outer = source if source_outer else target
-    outer_transactions = _transactions_element(outer)
-    outer_transaction = etree.SubElement(outer_transactions, 'portfolio-transaction', id=str(source_id if source_outer else target_id))
-    _fill_common(outer_transaction, candidate, security, note)
-    cross_entry = etree.SubElement(outer_transaction, 'crossEntry', {'class': 'portfolio-transfer', 'id': str(cross_id)})
-    source_definition = _append_portfolio_link(root, cross_entry, 'portfolioFrom', source, outer)
-    if source_outer:
-        etree.SubElement(cross_entry, 'transactionFrom', reference=str(source_id))
-    else:
-        _append_transfer_leg(source_definition, cross_entry, 'transactionFrom', source_id, cross_id, candidate, security, note, 'TRANSFER_OUT')
-    target_definition = _append_portfolio_link(root, cross_entry, 'portfolioTo', target, outer)
-    if source_outer:
-        _append_transfer_leg(target_definition, cross_entry, 'transactionTo', target_id, cross_id, candidate, security, note, 'TRANSFER_IN')
-    else:
-        etree.SubElement(cross_entry, 'transactionTo', reference=str(target_id))
-    _append_tail(outer_transaction, 'TRANSFER_OUT' if source_outer else 'TRANSFER_IN')
+    source_transaction = etree.SubElement(_transactions_element(source), 'portfolio-transaction', id=str(source_id))
+    _fill_common(source_transaction, candidate, security, note)
+    cross_entry = etree.SubElement(source_transaction, 'crossEntry', {'class': 'portfolio-transfer', 'id': str(cross_id)})
+    etree.SubElement(cross_entry, 'portfolioFrom', reference=source.get('id'))
+    etree.SubElement(cross_entry, 'transactionFrom', reference=str(source_id))
+    etree.SubElement(cross_entry, 'portfolioTo', reference=target.get('id'))
+    etree.SubElement(cross_entry, 'transactionTo', reference=str(target_id))
+    _append_tail(source_transaction, 'TRANSFER_OUT')
+
+    target_transaction = etree.SubElement(_transactions_element(target), 'portfolio-transaction', id=str(target_id))
+    _fill_common(target_transaction, candidate, security, note)
+    etree.SubElement(target_transaction, 'crossEntry', {'class': 'portfolio-transfer', 'reference': str(cross_id)})
+    _append_tail(target_transaction, 'TRANSFER_IN')
 
 
 def _append_delivery(root: etree._Element, candidate: PortfolioTransferCandidate, security: etree._Element) -> None:
@@ -145,55 +146,6 @@ def _append_delivery(root: etree._Element, candidate: PortfolioTransferCandidate
     transaction = etree.SubElement(_transactions_element(portfolio), 'portfolio-transaction', id=str(_next_id(root)))
     _fill_common(transaction, candidate, security, _note(candidate))
     _append_tail(transaction, candidate.transaction_type)
-
-
-def _append_portfolio_link(root: etree._Element, parent: etree._Element, tag: str, portfolio: etree._Element, outer: etree._Element) -> etree._Element | None:
-    if _appears_after(root, portfolio, outer) and _is_top_level_portfolio_definition(root, portfolio):
-        definition = copy.deepcopy(portfolio)
-        definition.tag = tag
-        parent.append(definition)
-        _replace_top_level_portfolio_with_reference(root, portfolio.get('id'))
-        return definition
-    etree.SubElement(parent, tag, reference=portfolio.get('id'))
-    return portfolio
-
-
-def _append_transfer_leg(
-    portfolio_definition: etree._Element | None,
-    cross_entry: etree._Element,
-    leg_tag: str,
-    transaction_id: int,
-    cross_id: int,
-    candidate: PortfolioTransferCandidate,
-    security: etree._Element,
-    note: str,
-    transaction_type: str,
-) -> None:
-    if portfolio_definition is not None:
-        transaction = etree.SubElement(_transactions_element(portfolio_definition), 'portfolio-transaction', id=str(transaction_id))
-        etree.SubElement(cross_entry, leg_tag, reference=str(transaction_id))
-    else:
-        transaction = etree.SubElement(cross_entry, leg_tag, id=str(transaction_id))
-    _fill_common(transaction, candidate, security, note)
-    etree.SubElement(transaction, 'crossEntry', {'class': 'portfolio-transfer', 'reference': str(cross_id)})
-    _append_tail(transaction, transaction_type)
-
-
-def _is_top_level_portfolio_definition(root: etree._Element, portfolio: etree._Element) -> bool:
-    portfolios = root.find('portfolios')
-    return portfolios is not None and portfolio in list(portfolios) and portfolio.get('id') is not None
-
-
-def _replace_top_level_portfolio_with_reference(root: etree._Element, portfolio_id: str | None) -> None:
-    if portfolio_id is None:
-        return
-    portfolios = root.find('portfolios')
-    if portfolios is None:
-        return
-    for index, child in enumerate(list(portfolios)):
-        if child.tag == 'portfolio' and child.get('id') == portfolio_id:
-            portfolios[index] = etree.Element('portfolio', reference=portfolio_id)
-            return
 
 
 def _fill_common(transaction: etree._Element, candidate: PortfolioTransferCandidate, security: etree._Element, note: str) -> None:
@@ -281,11 +233,6 @@ def _transactions_element(portfolio: etree._Element) -> etree._Element:
     if transactions is None:
         transactions = etree.SubElement(portfolio, 'transactions')
     return transactions
-
-
-def _appears_after(root: etree._Element, first: etree._Element, second: etree._Element) -> bool:
-    elements = list(root.iter())
-    return elements.index(first) > elements.index(second)
 
 
 def _note(candidate: PortfolioTransferCandidate) -> str:

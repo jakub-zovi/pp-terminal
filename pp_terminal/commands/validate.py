@@ -53,7 +53,8 @@ def run_validations(
     """Run configured validation rules on the portfolio data."""
     portfolio = cast(Portfolio, ctx.obj.portfolio)
     config = cast(Config, ctx.obj.config)
-    compatibility_violations = validate_app_compatibility(ctx.obj.source_file)
+    source_file = getattr(ctx.obj, 'source_file', None)
+    compatibility_violations = validate_app_compatibility(source_file) if source_file is not None else []
     for violation in compatibility_violations:
         log.error('Portfolio Performance app compatibility: %s', violation)
     if compatibility_violations:
