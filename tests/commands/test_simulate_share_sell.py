@@ -68,7 +68,7 @@ def _holdings(security_ids: list[str]) -> pd.Series:
 
 
 def test_preserve_allocation_requires_target_net() -> None:
-    """The shared entry point (used by CLI and MCP) rejects a taxonomy without a target net."""
+    """The shared entry point rejects a taxonomy without a target net."""
     with pytest.raises(InputError, match="requires a target net"):
         prepare_share_sell_df(Portfolio(), empty_config(), datetime(2025, 1, 1), 26.375, taxonomy="Anything")
 
@@ -258,7 +258,7 @@ def test_introduction_preserve_allocation_explains_allocation_and_floor() -> Non
 
 
 def test_target_gross_and_net_are_mutually_exclusive() -> None:
-    """The shared entry point (used by CLI and MCP) rejects both amount targets at once."""
+    """The shared entry point rejects both amount targets at once."""
     with pytest.raises(InputError, match="mutually exclusive"):
         prepare_share_sell_df(Portfolio(), empty_config(), datetime(2025, 1, 1), 26.375,
                               target_net=1000.0, target_gross=1000.0)

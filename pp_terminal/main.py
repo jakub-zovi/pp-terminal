@@ -43,7 +43,6 @@ from pp_terminal.utils.plugins import load_command_plugins
 from pp_terminal.data.pp_portfolio_builder import PpPortfolioBuilder, CachedPpPortfolioBuilder
 from pp_terminal.data.xml_anonymizer import XmlAnonymizer
 from pp_terminal.commands.import_broker import app as import_app
-from pp_terminal.mcp_server import start_mcp
 from . import __version__
 
 VERBOSE_HINT = '%s (run with --verbose for details)'
@@ -78,8 +77,6 @@ locale.setlocale(category=locale.LC_ALL, locale='')
 
 # Load external plugins dynamically
 load_command_plugins(app)
-
-app.command(name="mcp")(start_mcp)
 
 
 def version_callback(value: bool) -> None:

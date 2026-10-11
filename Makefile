@@ -26,5 +26,3 @@ test-mutations:
 build: install
 	uv build
 
-inspect-mcp:
-	cd tests/fixtures/ && npx @modelcontextprotocol/inspector -- uv run pp-terminal --no-cache --config kommer.toml mcp $(ARGS)

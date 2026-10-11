@@ -108,6 +108,26 @@ def test_share_sell_csv_output(request: TopRequest) -> None:
     assert result.output == expected_output
 
 
+@pytest.mark.parametrize('security', ['IE00B4WXJJ64', 'A0RL83'])
+def test_share_sell_accepts_isin_or_wkn(request: TopRequest, security: str) -> None:
+    runner = CliRunner()
+    fixtures_dir = request.path.parent.parent / 'fixtures'
+
+    result = runner.invoke(app, [
+        '--file', str(fixtures_dir / 'kommer.ids.xml'),
+        '--config', str(fixtures_dir / 'kommer.toml'),
+        '--output', 'csv',
+        '--no-cache',
+        'simulate', 'share-sell',
+        security,
+        '--account-id', 'dc6fac85-6c6e-47f1-a968-2b5b84d90997',
+        '--tax-rate', '26.375'
+    ])
+
+    assert result.exit_code == 0, f"Command failed with: {result.output}"
+    assert result.output == (fixtures_dir / 'expected_share_sell_kommer.csv').read_text(encoding='utf-8')
+
+
 def test_share_sell_summary_aggregates_per_security(request: TopRequest) -> None:
     runner = CliRunner()
     fixtures_dir = request.path.parent.parent / 'fixtures'

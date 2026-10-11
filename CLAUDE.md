@@ -47,7 +47,6 @@ pp_terminal/
 └── utils/                       # Framework utilities & config
 ```
 
-Additional top-level modules (e.g. an MCP server) may live alongside `main.py`; they are entry points, not layers.
 
 ### Architectural Principles
 

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `simulate share-sell` accepts an ISIN or WKN in place of the security ID
+
+### Removed
+
+- MCP server (`pp-terminal mcp`), its `mcp` dependency and the `inspect-mcp` make target; use the CLI with `--output json` instead
+
 ## [0.12.1] - 2026-08-26
 
 ### Added

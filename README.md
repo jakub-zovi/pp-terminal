@@ -11,7 +11,7 @@ too many edge-cases, etc.
 
 ## Use Cases
 
-You can run the single commands individually or _pp-terminal_ can act as an [MCP server](#mcp-server) to give AI models like Claude Opus, Gemini or Qwen access to your 
+You can run the single commands individually, or let an AI agent call them (e.g. with `--output json`) on your 
 (anonymized) portfolio to help you answer questions like:
 - "Give me an overview of my portfolio"
 - "What do you think about my portfolio allocation? Am I overweight anywhere?"
@@ -49,18 +49,6 @@ In addition to the standard set, you can easily [create your own commands](#user
 and share them with the community.
 
 By default, `pp-terminal --help` provides the following commands:
-
-### MCP Server
-
-The application can be used to access Portfolio Performance data using an [MCP server](https://modelcontextprotocol.io/docs/getting-started/intro).  
-This has several advantages over directly working on the XML file, e.g.
-- Safely access sensitive financial data by e.g. anonymization and only exposing relevant portfolio information
-- Significantly reduce context length and token usage
-
-The MCP server can be started with the following command:
-```
-pp-terminal mcp
-```
 
 ### Inspect Portfolio
 

@@ -41,7 +41,7 @@ from pp_terminal.utils.helper import footer, format_percent
 from pp_terminal.utils.options import tax_rate_callback
 from pp_terminal.output.strategy import OutputStrategy, Console
 from pp_terminal.domain.portfolio_snapshot import PortfolioSnapshot
-from pp_terminal.domain.portfolio import Portfolio, get_security_by_id
+from pp_terminal.domain.portfolio import Portfolio, get_security_by_id, resolve_security
 from pp_terminal.domain.schemas import Percent, Money, TaxPaidSchema
 from pp_terminal.output.table_decorator import TableOptions, format_value
 
@@ -103,7 +103,7 @@ def _format_share_sell_value(value: Any, column_name: str, row: pd.Series) -> st
 def _validate_sell_arguments(
         target_net: Money | None, target_gross: Money | None, taxonomy: str | None, min_amount: Money | None
 ) -> None:
-    """Guard the shared entry point (used by CLI and MCP) against incompatible argument combinations."""
+    """Guard the shared entry point against incompatible argument combinations."""
     if target_gross is not None and target_net is not None:
         raise InputError("target gross and target net are mutually exclusive")
     if taxonomy is not None and target_net is None and target_gross is None:
@@ -284,7 +284,7 @@ def _sell_introduction(  # pylint: disable=too-many-arguments,too-many-positiona
 @app.command(name="share-sell")
 def simulate_share_sell(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
         ctx: typer.Context,
-        security_id: Annotated[str | None, typer.Argument(help="Security ID (defaults to all securities)")] = None,
+        security_id: Annotated[str | None, typer.Argument(help="Security ID, ISIN or WKN (defaults to all securities)")] = None,
         account_id: Annotated[str | None, typer.Option("--account-id", "-a", help="Securities account ID (defaults to all accounts)")] = None,
         date: Annotated[datetime | None, typer.Option(formats=["%Y-%m-%d"], help="Sale date (defaults to today)")] = None,
         tax_rate: Annotated[Percent, typer.Option(help="Your personal tax rate", min=0, max=100, callback=tax_rate_callback)] = None,  # type: ignore
@@ -314,6 +314,9 @@ def simulate_share_sell(  # pylint: disable=too-many-arguments,too-many-position
         min_amount = command_config(config, ShareSellConfig).min_amount
 
     _validate_options(security_id, shares, price, target_net, target_gross, taxonomy, min_amount)
+
+    if security_id is not None:
+        security_id = resolve_security(portfolio, security_id)
 
     if date is None:
         date = get_today()

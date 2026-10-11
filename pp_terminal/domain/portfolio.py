@@ -126,6 +126,20 @@ class Portfolio:  # pylint: disable=too-many-instance-attributes
         return self._taxonomy_assignments
 
 
+def resolve_security(portfolio: Portfolio, security: str) -> str:
+    if security in portfolio.securities.index:
+        return security
+
+    for column, label in (('isin', 'ISIN'), ('wkn', 'WKN')):
+        matches = portfolio.securities.index[portfolio.securities[column] == security]
+        if len(matches) == 1:
+            return str(matches[0])
+        if len(matches) > 1:
+            raise InputError(f"{label} '{security}' matches multiple securities: {list(matches)}")
+
+    raise InputError(f"Security '{security}' not found by ID, ISIN or WKN")
+
+
 def get_security_by_id(portfolio: Portfolio, security_id: str) -> Security:
     if security_id not in portfolio.securities.index:
         raise InputError(f"Security '{security_id}' not found in portfolio")
