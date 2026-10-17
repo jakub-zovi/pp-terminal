@@ -17,6 +17,7 @@
     along with pp-terminal. If not, see <http://www.gnu.org/licenses/>.
 """
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -28,6 +29,7 @@ from _pytest.fixtures import TopRequest
 from pp_terminal.exceptions import InputError
 from pp_terminal.data.pp_portfolio_builder import PpPortfolioBuilder, CachedPpPortfolioBuilder
 from pp_terminal.data.ppxml2db_wrapper import Ppxml2dbWrapper, DB_NAME_IN_MEMORY
+from pp_terminal.domain.portfolio_snapshot import PortfolioSnapshot
 from pp_terminal.domain.schemas import TransactionType
 
 EXPECTED_AMOUNT_SIGNS = {
@@ -126,6 +128,17 @@ def test_transaction_amount_sign_and_scaling_per_type(request: TopRequest) -> No
         assert amounts.tolist() == [EXPECTED_AMOUNT_SIGNS[transaction_type] * 1234.56], transaction_type.value
 
     assert portfolio.securities_account_transactions['shares'].tolist() == [2.5] * 6
+
+
+def test_deposit_transactions_stay_in_the_account_currency(request: TopRequest) -> None:
+    """Cash amounts are booked in the account currency and already net of fees; the forex side of a unit is informational."""
+    portfolio = PpPortfolioBuilder().construct(request.path.parent.parent / 'fixtures' / 'deposit_forex.ids.xml')
+
+    transactions = portfolio.deposit_account_transactions
+
+    assert transactions['currency'].unique().tolist() == ['EUR']
+    assert transactions['amount'].tolist() == [1000.0, -500.0, 19.59]
+    assert PortfolioSnapshot(portfolio, datetime(2024, 12, 31)).balances.to_dict() == {('forex-account-uuid-001', 'EUR'): pytest.approx(519.59)}
 
 
 def test_xml_file_opened_readonly(request: TopRequest) -> None:

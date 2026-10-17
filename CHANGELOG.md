@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `simulate share-sell` accepts an ISIN or WKN in place of the security ID
 
+### Fixed
+
+- Deposit account balances were reported in the foreign currency of a transaction's exchange-rate unit (e.g. a CZK or USD leg of a currency conversion) instead of the account currency, and fees were subtracted twice from cash amounts that are already net. This affected `view accounts`, `view cash-flows`, `simulate interest` and the balance validation rules for every account with forex transactions
+
 ### Removed
 
 - MCP server (`pp-terminal mcp`), its `mcp` dependency and the `inspect-mcp` make target; use the CLI with `--output json` instead

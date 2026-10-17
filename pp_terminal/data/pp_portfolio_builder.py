@@ -120,7 +120,10 @@ class PpPortfolioBuilder:  # pylint: disable=too-few-public-methods
 
     def _parse_transactions(self) -> DataFrame[TransactionSchema]:
         transactions = (pd.read_sql_query("""
-select datetime(x.date) as date, ifnull(xu.forex_currency, x.currency) as currency, ifnull(xu.forex_amount, x.amount)-x.fees as amount_wo_fees, x.fees, x.taxes, x.uuid, x.account, x.type, x.security, x.shares, x.acctype, ce.to_acc as transferTargetAccount, xt.shares as transferTargetShares
+select datetime(x.date) as date,
+    case when x.acctype = 'account' then x.currency else ifnull(xu.forex_currency, x.currency) end as currency,
+    case when x.acctype = 'account' then x.amount else ifnull(xu.forex_amount, x.amount)-x.fees end as amount_wo_fees,
+    x.fees, x.taxes, x.uuid, x.account, x.type, x.security, x.shares, x.acctype, ce.to_acc as transferTargetAccount, xt.shares as transferTargetShares
 from xact as x
 left join xact_unit as xu on xu.xact = x.uuid and xu.type = 'GROSS_VALUE'
 left join xact_cross_entry as ce on ce.from_xact = x.uuid and ce.type = 'portfolio-transfer'

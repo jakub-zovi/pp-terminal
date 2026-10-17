@@ -1,0 +1,90 @@
+<client id="1">
+  <version>66</version>
+  <baseCurrency>EUR</baseCurrency>
+  <securities>
+    <security id="2">
+      <uuid>forex-security-uuid-001</uuid>
+      <name>Forex Test Stock</name>
+      <currencyCode>USD</currencyCode>
+      <feed>MANUAL</feed>
+      <prices/>
+      <isin>US0000000001</isin>
+      <attributes>
+        <map/>
+      </attributes>
+      <events/>
+      <isRetired>false</isRetired>
+      <updatedAt>2024-01-05T00:00:00.000000Z</updatedAt>
+    </security>
+  </securities>
+  <watchlists/>
+  <accounts>
+    <account id="3">
+      <uuid>forex-account-uuid-001</uuid>
+      <name>EUR Cash</name>
+      <currencyCode>EUR</currencyCode>
+      <isRetired>false</isRetired>
+      <transactions>
+        <account-transaction id="4">
+          <uuid>forex-txn-deposit-001</uuid>
+          <date>2024-01-01T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>100000</amount>
+          <shares>0</shares>
+          <updatedAt>2024-01-05T00:00:00.000000Z</updatedAt>
+          <type>DEPOSIT</type>
+        </account-transaction>
+        <account-transaction id="5">
+          <uuid>forex-txn-removal-001</uuid>
+          <date>2024-01-02T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>50000</amount>
+          <shares>0</shares>
+          <units>
+            <unit type="GROSS_VALUE">
+              <amount currency="EUR" amount="50000"/>
+              <forex currency="CZK" amount="1250000"/>
+              <exchangeRate>0.04</exchangeRate>
+            </unit>
+          </units>
+          <updatedAt>2024-01-05T00:00:00.000000Z</updatedAt>
+          <type>REMOVAL</type>
+        </account-transaction>
+        <account-transaction id="6">
+          <uuid>forex-txn-dividends-001</uuid>
+          <date>2024-01-03T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>1959</amount>
+          <security reference="2"/>
+          <shares>0</shares>
+          <units>
+            <unit type="GROSS_VALUE">
+              <amount currency="EUR" amount="1965"/>
+              <forex currency="USD" amount="2307"/>
+              <exchangeRate>0.85</exchangeRate>
+            </unit>
+            <unit type="FEE">
+              <amount currency="EUR" amount="6"/>
+            </unit>
+          </units>
+          <updatedAt>2024-01-05T00:00:00.000000Z</updatedAt>
+          <type>DIVIDENDS</type>
+        </account-transaction>
+      </transactions>
+      <attributes>
+        <map/>
+      </attributes>
+      <updatedAt>2024-01-05T00:00:00.000000Z</updatedAt>
+    </account>
+  </accounts>
+  <portfolios/>
+  <plans/>
+  <taxonomies/>
+  <dashboards/>
+  <properties/>
+  <settings>
+    <bookmarks/>
+    <attributeTypes/>
+    <configurationSets/>
+  </settings>
+</client>
