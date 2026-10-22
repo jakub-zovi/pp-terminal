@@ -64,8 +64,8 @@ def test_import_transactions_writes_new_xml_without_touching_source(tmp_path: Pa
     assert xml_file.read_text(encoding='utf-8') == original
     imported = output_file.read_text(encoding='utf-8')
     assert '<portfolio-transaction id=' in imported
-    assert '<accountTransaction id=' in imported
-    assert '<account-transaction reference=' in imported
+    assert '<account-transaction id=' in imported
+    assert '<accountTransaction reference=' in imported
     assert '<type>SELL</type>' in imported
 
 

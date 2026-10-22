@@ -14,7 +14,9 @@ from lxml import etree
 from pp_terminal.data.broker_import.ibkr_csv import parse_csv
 from pp_terminal.data.broker_import.models import ImportCandidate, ImportReport
 from pp_terminal.data.broker_import.xtb_xlsx import parse_xlsx
+from pp_terminal.data.xstream_id_references import reorder_id_references
 from pp_terminal.exceptions import InputError
+from pp_terminal.validation.app_compatibility import find_app_compatibility_violations
 
 _MONEY_SCALE = Decimal('100')
 _SHARE_SCALE = Decimal('100000000')
@@ -38,13 +40,7 @@ def import_transactions(
     expected_net_cash_delta = sum((candidate.net_cash for candidate in to_import), Decimal('0'))
 
     if not dry_run:
-        if output_file is None:
-            raise InputError('pass --output or use --dry-run')
-        if output_file.exists():
-            raise InputError(f'Output file {output_file} already exists')
-        for candidate in to_import:
-            _append_candidate(root, candidate, portfolio, cash_account, ticker_mappings)
-        tree.write(str(output_file), encoding='utf-8', xml_declaration=False, pretty_print=True)
+        _write_output(root, to_import, portfolio, cash_account, ticker_mappings, output_file)
 
     return ImportReport(
         parsed=len(candidates),
@@ -54,6 +50,27 @@ def import_transactions(
         expected_net_cash_delta=expected_net_cash_delta,
         output_file=output_file if not dry_run else None,
     )
+
+
+def _write_output(
+    root: etree._Element,
+    to_import: list[ImportCandidate],
+    portfolio: etree._Element,
+    cash_account: etree._Element,
+    ticker_mappings: dict[str, str],
+    output_file: Path | None,
+) -> None:
+    if output_file is None:
+        raise InputError('pass --output or use --dry-run')
+    if output_file.exists():
+        raise InputError(f'Output file {output_file} already exists')
+    for candidate in to_import:
+        _append_candidate(root, candidate, portfolio, cash_account, ticker_mappings)
+    serialized = reorder_id_references(root)
+    violations = find_app_compatibility_violations(serialized)
+    if violations:
+        raise InputError('Refusing to write XML Portfolio Performance would reject: ' + '; '.join(violations[:5]))
+    etree.ElementTree(serialized).write(str(output_file), encoding='utf-8', xml_declaration=False)
 
 
 def _parse_export(path: Path) -> list[ImportCandidate]:
