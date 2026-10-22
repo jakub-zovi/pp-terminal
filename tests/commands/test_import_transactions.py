@@ -90,3 +90,20 @@ def test_import_transactions_skips_duplicate_on_second_run(tmp_path: Path) -> No
     assert second.exit_code == 0, second.output
     assert 'duplicates: 1' in second.output
     assert 'to_import: 0' in second.output
+
+
+def test_import_transactions_xtb_parses_shares_with_ticker_in_comment(tmp_path: Path) -> None:
+    runner = CliRunner()
+    xml_file = Path('tests/fixtures/import_base.ids.xml')
+    xlsx_file = Path('tests/fixtures/broker_import/xtb_cash_operations.xlsx')
+    output_file = tmp_path / 'imported.xml'
+
+    result = runner.invoke(app, [
+        '--file', str(xml_file), '--no-cache', 'import', 'transactions', str(xlsx_file),
+        '--portfolio-account', 'Test Depot', '--cash-account', 'Test Cash', '--output', str(output_file)
+    ])
+
+    assert result.exit_code == 0, result.output
+    assert 'to_import: 1' in result.output
+    imported = output_file.read_text(encoding='utf-8')
+    assert '<shares>200000000</shares>' in imported

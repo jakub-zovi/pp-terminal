@@ -23,7 +23,7 @@ def _excel_datetime(value: object) -> datetime:
 
 
 def _parse_trade_shares(comment: str) -> Decimal:
-    match = re.search(r'\b(?:OPEN|CLOSE)\s+BUY\s+([0-9]+(?:\.[0-9]+)?)(?:/[0-9]+(?:\.[0-9]+)?)?\s+@', comment)
+    match = re.search(r'\b(?:OPEN|CLOSE)\s+(?:BUY|SELL)\s+(?:[^\s@]+\s+)?([0-9]+(?:\.[0-9]+)?)(?:/[0-9]+(?:\.[0-9]+)?)?\s+@', comment)
     if match is None:
         return Decimal('0')
     return Decimal(match.group(1))
