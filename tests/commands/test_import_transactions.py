@@ -69,6 +69,25 @@ def test_import_transactions_writes_new_xml_without_touching_source(tmp_path: Pa
     assert '<type>SELL</type>' in imported
 
 
+def test_import_transactions_amount_is_net_cash_impact_not_gross(tmp_path: Path) -> None:
+    # ibkr_trade.csv: SELL, TradeMoney/Proceeds=104.18, IBCommission=-0.353995358
+    # PP's `amount` must be the net cash impact (gross - fee for a SELL), not the gross value alone.
+    runner = CliRunner()
+    xml_file = Path('tests/fixtures/import_base.ids.xml')
+    csv_file = Path('tests/fixtures/broker_import/ibkr_trade.csv')
+    output_file = tmp_path / 'imported.xml'
+
+    result = runner.invoke(app, [
+        '--file', str(xml_file), '--no-cache', 'import', 'transactions', str(csv_file),
+        '--portfolio-account', 'Test Depot', '--cash-account', 'Test Cash', '--output', str(output_file)
+    ])
+
+    assert result.exit_code == 0, result.output
+    imported = output_file.read_text(encoding='utf-8')
+    assert '<amount>10383</amount>' in imported
+    assert '<amount>10418</amount>' not in imported
+
+
 def test_import_transactions_skips_duplicate_on_second_run(tmp_path: Path) -> None:
     runner = CliRunner()
     xml_file = Path('tests/fixtures/import_base.ids.xml')

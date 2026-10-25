@@ -132,7 +132,7 @@ def _is_duplicate(
             if candidate.note is None or existing_note == candidate.note:
                 return True
             continue
-        if transaction.findtext('amount') != str(_money(candidate.gross_amount)):
+        if transaction.findtext('amount') != str(_money(_trade_amount(candidate))):
             continue
         if transaction.findtext('date') != _format_date(candidate.date):
             continue
@@ -171,14 +171,15 @@ def _append_trade(
     cross_id = _next_id(root, portfolio_id)
     account_transaction_id = _next_id(root, cross_id)
 
+    total_amount = _trade_amount(candidate)
     portfolio_transaction = etree.SubElement(portfolio_transactions, 'portfolio-transaction', id=str(portfolio_id))
-    _fill_common_transaction(portfolio_transaction, candidate, security)
+    _fill_common_transaction(portfolio_transaction, candidate, security, amount=total_amount)
     cross_entry = etree.SubElement(portfolio_transaction, 'crossEntry', {'class': 'buysell', 'id': str(cross_id)})
     etree.SubElement(cross_entry, 'portfolio', reference=portfolio.get('id'))
     etree.SubElement(cross_entry, 'portfolioTransaction', reference=str(portfolio_id))
     etree.SubElement(cross_entry, 'account', reference=cash_account.get('id'))
     account_transaction = etree.SubElement(cross_entry, 'accountTransaction', id=str(account_transaction_id))
-    _fill_common_transaction(account_transaction, candidate, security, shares=Decimal('0'))
+    _fill_common_transaction(account_transaction, candidate, security, shares=Decimal('0'), amount=total_amount)
     etree.SubElement(account_transaction, 'crossEntry', {'class': 'buysell', 'reference': str(cross_id)})
     _append_tail_transaction_fields(account_transaction, candidate.transaction_type)
     etree.SubElement(portfolio_transaction, 'shares').text = str(_shares(candidate.shares))
@@ -199,16 +200,25 @@ def _append_cash_operation(
     _append_tail_transaction_fields(transaction, candidate.transaction_type)
 
 
+def _trade_amount(candidate: ImportCandidate) -> Decimal:
+    # Portfolio Performance's transaction `amount` is the actual net cash impact, not the
+    # gross trade value: BUY adds fee/tax to the cost, SELL subtracts fee/tax from proceeds.
+    if candidate.transaction_type == 'SELL':
+        return candidate.gross_amount - candidate.fee - candidate.tax
+    return candidate.gross_amount + candidate.fee + candidate.tax
+
+
 def _fill_common_transaction(
     transaction: etree._Element,
     candidate: ImportCandidate,
     security: etree._Element | None,
     shares: Decimal | None = None,
+    amount: Decimal | None = None,
 ) -> None:
     etree.SubElement(transaction, 'uuid').text = str(uuid4())
     etree.SubElement(transaction, 'date').text = _format_date(candidate.date)
     etree.SubElement(transaction, 'currencyCode').text = candidate.currency
-    etree.SubElement(transaction, 'amount').text = str(_money(candidate.gross_amount))
+    etree.SubElement(transaction, 'amount').text = str(_money(amount if amount is not None else candidate.gross_amount))
     if security is not None:
         etree.SubElement(transaction, 'security', reference=security.get('id'))
     if shares is not None:
