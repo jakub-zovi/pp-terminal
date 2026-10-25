@@ -27,6 +27,15 @@
       <attributes><map/></attributes>
       <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
     </account>
+    <account id="5">
+      <uuid>import-cash-uuid-002</uuid>
+      <name>Test Cash EUR</name>
+      <currencyCode>EUR</currencyCode>
+      <isRetired>false</isRetired>
+      <transactions/>
+      <attributes><map/></attributes>
+      <updatedAt>2026-01-01T00:00:00.000000Z</updatedAt>
+    </account>
   </accounts>
   <portfolios>
     <portfolio id="4">

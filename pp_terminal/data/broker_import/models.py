@@ -37,10 +37,16 @@ class ImportCandidate:
     tax: Decimal
     net_cash: Decimal
     note: str | None
+    to_currency: str | None = None
+    to_amount: Decimal | None = None
 
     @property
     def is_trade(self) -> bool:
         return self.transaction_type in {'BUY', 'SELL'}
+
+    @property
+    def is_currency_transfer(self) -> bool:
+        return self.transaction_type == 'CURRENCY_TRANSFER'
 
 
 @dataclass(frozen=True)

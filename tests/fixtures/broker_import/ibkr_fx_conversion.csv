@@ -1,0 +1,2 @@
+"ClientAccountID","CurrencyPrimary","AssetClass","Symbol","Description","TradeID","DateTime","TransactionType","Quantity","TradePrice","TradeMoney","Proceeds","Taxes","IBCommission","IBCommissionCurrency","NetCash","Buy/Sell","ISIN"
+"U15644339","USD","CASH","EUR.USD","EUR.USD","9001","20260911;104453","ExchTrade","100","1.1","110","-110","0","-0.5","EUR","0","BUY",""

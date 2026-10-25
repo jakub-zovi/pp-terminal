@@ -58,11 +58,16 @@ def transactions(
     output_file: Annotated[Path | None, typer.Option('--output', help='Output Portfolio Performance XML file. The source file is never modified.')] = None,
     dry_run: Annotated[bool, typer.Option(help='Preview import without writing XML.')] = False,
     ticker_map: Annotated[list[str] | None, typer.Option(help='Ticker alias mapping, e.g. GAW.UK=GAW.L.')] = None,
+    cash_account_map: Annotated[
+        list[str] | None,
+        typer.Option(help='Extra cash account per currency for FX conversions/deposits in other currencies, e.g. CZK=CZK_IBKR.'),
+    ] = None,
 ) -> None:
     """Import the broker transaction exports supported by pp-terminal into a new XML file."""
 
     source_file = cast(Path, ctx.obj.source_file)
     mappings = dict(item.split('=', 1) for item in ticker_map or [])
+    cash_account_mappings = dict(item.split('=', 1) for item in cash_account_map or [])
 
     if not dry_run and output_file is None:
         raise InputError('pass --output or use --dry-run')
@@ -75,6 +80,7 @@ def transactions(
         output_file=output_file,
         dry_run=dry_run,
         ticker_mappings=mappings,
+        cash_account_map=cash_account_mappings,
     )
     _print_report(report)
 

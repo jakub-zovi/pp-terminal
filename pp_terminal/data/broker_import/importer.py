@@ -4,6 +4,7 @@
     This file is part of pp-terminal.
 """
 # pylint: disable=too-many-arguments,too-many-positional-arguments,c-extension-no-member
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
@@ -30,17 +31,21 @@ def import_transactions(
     output_file: Path | None,
     dry_run: bool,
     ticker_mappings: dict[str, str],
+    cash_account_map: dict[str, str] | None = None,
 ) -> ImportReport:
     candidates = _parse_export(broker_export)
-    tree = etree.parse(str(source_file))
-    root = tree.getroot()
+    root = etree.parse(str(source_file)).getroot()
     portfolio = _find_account(root, 'portfolio', portfolio_account_name)
-    cash_account = _find_account(root, 'account', cash_account_name)
-    to_import = [candidate for candidate in candidates if not _is_duplicate(root, candidate, portfolio, cash_account, ticker_mappings)]
+    primary_cash_account = _find_account(root, 'account', cash_account_name)
+    cash_accounts = _build_cash_accounts(root, primary_cash_account, cash_account_map or {})
+    to_import = [
+        candidate for candidate in candidates
+        if not _is_duplicate(root, candidate, portfolio, cash_accounts, primary_cash_account, ticker_mappings)
+    ]
     expected_net_cash_delta = sum((candidate.net_cash for candidate in to_import), Decimal('0'))
 
     if not dry_run:
-        _write_output(root, to_import, portfolio, cash_account, ticker_mappings, output_file)
+        _write_output(root, to_import, portfolio, cash_accounts, primary_cash_account, ticker_mappings, output_file)
 
     return ImportReport(
         parsed=len(candidates),
@@ -52,11 +57,30 @@ def import_transactions(
     )
 
 
+def _build_cash_accounts(
+    root: etree._Element,
+    primary_cash_account: etree._Element,
+    cash_account_map: dict[str, str],
+) -> dict[str, etree._Element]:
+    cash_accounts = {primary_cash_account.findtext('currencyCode'): primary_cash_account}
+    for currency, account_name in cash_account_map.items():
+        cash_accounts[currency] = _find_account(root, 'account', account_name)
+    return cash_accounts
+
+
+def _resolve_cash_account(cash_accounts: dict[str, etree._Element], currency: str | None) -> etree._Element:
+    account = cash_accounts.get(currency) if currency else None
+    if account is None:
+        raise InputError(f'No cash account mapped for currency {currency}; pass --cash-account-map {currency}=<account name>')
+    return account
+
+
 def _write_output(
     root: etree._Element,
     to_import: list[ImportCandidate],
     portfolio: etree._Element,
-    cash_account: etree._Element,
+    cash_accounts: dict[str, etree._Element],
+    primary_cash_account: etree._Element,
     ticker_mappings: dict[str, str],
     output_file: Path | None,
 ) -> None:
@@ -65,7 +89,7 @@ def _write_output(
     if output_file.exists():
         raise InputError(f'Output file {output_file} already exists')
     for candidate in to_import:
-        _append_candidate(root, candidate, portfolio, cash_account, ticker_mappings)
+        _append_candidate(root, candidate, portfolio, cash_accounts, primary_cash_account, ticker_mappings)
     serialized = reorder_id_references(root)
     violations = find_app_compatibility_violations(serialized)
     if violations:
@@ -112,12 +136,15 @@ def _is_duplicate(
     root: etree._Element,
     candidate: ImportCandidate,
     portfolio: etree._Element,
-    cash_account: etree._Element,
+    cash_accounts: dict[str, etree._Element],
+    primary_cash_account: etree._Element,
     ticker_mappings: dict[str, str],
 ) -> bool:
+    if candidate.is_currency_transfer:
+        return _is_duplicate_currency_transfer(candidate, cash_accounts)
     security = _find_security(root, candidate, ticker_mappings)
     security_id = security.get('id') if security is not None else None
-    account = portfolio if candidate.is_trade else cash_account
+    account = portfolio if candidate.is_trade else cash_accounts.get(candidate.currency, primary_cash_account)
     transaction_tag = 'portfolio-transaction' if candidate.is_trade else 'account-transaction'
     for transaction in account.iter(transaction_tag):
         if transaction.get('reference') is not None:
@@ -127,16 +154,39 @@ def _is_duplicate(
         security_ref = transaction.find('security')
         if security_id is not None and (security_ref is None or security_ref.get('reference') != security_id):
             continue
-        if not candidate.is_trade:
-            existing_note = transaction.findtext('note')
-            if candidate.note is None or existing_note == candidate.note:
-                return True
+        if _is_duplicate_match(transaction, candidate):
+            return True
+    return False
+
+
+def _is_duplicate_match(transaction: etree._Element, candidate: ImportCandidate) -> bool:
+    if candidate.is_trade:
+        return bool(
+            transaction.findtext('amount') == str(_money(_trade_amount(candidate)))
+            and transaction.findtext('date') == _format_date(candidate.date)
+            and transaction.findtext('shares') == str(_shares(candidate.shares))
+        )
+    if candidate.transaction_type in {'DEPOSIT', 'REMOVAL'}:
+        return bool(
+            transaction.findtext('date') == _format_date(candidate.date)
+            and transaction.findtext('amount') == str(_money(candidate.gross_amount))
+        )
+    existing_note = transaction.findtext('note')
+    return candidate.note is None or existing_note == candidate.note
+
+
+def _is_duplicate_currency_transfer(candidate: ImportCandidate, cash_accounts: dict[str, etree._Element]) -> bool:
+    from_account = cash_accounts.get(candidate.currency)
+    if from_account is None:
+        return False
+    for transaction in from_account.iter('account-transaction'):
+        if transaction.get('reference') is not None:
             continue
-        if transaction.findtext('amount') != str(_money(_trade_amount(candidate))):
+        if transaction.findtext('type') != 'TRANSFER_OUT':
             continue
         if transaction.findtext('date') != _format_date(candidate.date):
             continue
-        if transaction.findtext('shares') != str(_shares(candidate.shares)):
+        if transaction.findtext('amount') != str(_money(candidate.gross_amount)):
             continue
         return True
     return False
@@ -146,12 +196,19 @@ def _append_candidate(
     root: etree._Element,
     candidate: ImportCandidate,
     portfolio: etree._Element,
-    cash_account: etree._Element,
+    cash_accounts: dict[str, etree._Element],
+    primary_cash_account: etree._Element,
     ticker_mappings: dict[str, str],
 ) -> None:
+    if candidate.is_currency_transfer:
+        from_account = _resolve_cash_account(cash_accounts, candidate.currency)
+        to_account = _resolve_cash_account(cash_accounts, candidate.to_currency)
+        _append_currency_transfer(root, candidate, from_account, to_account)
+        return
     security = _find_security(root, candidate, ticker_mappings)
     if candidate.ticker is not None and security is None:
         raise InputError(f'Security not found for {candidate.ticker}')
+    cash_account = cash_accounts.get(candidate.currency, primary_cash_account)
     if candidate.is_trade:
         _append_trade(root, candidate, portfolio, cash_account, security)
     else:
@@ -198,6 +255,45 @@ def _append_cash_operation(
     _fill_common_transaction(transaction, candidate, security, shares=Decimal('0'))
     _append_fee_units(transaction, candidate)
     _append_tail_transaction_fields(transaction, candidate.transaction_type)
+
+
+def _append_currency_transfer(
+    root: etree._Element,
+    candidate: ImportCandidate,
+    from_account: etree._Element,
+    to_account: etree._Element,
+) -> None:
+    from_transactions = _transactions_element(from_account)
+    to_transactions = _transactions_element(to_account)
+    from_id = _next_id(root)
+    transfer_id = _next_id(root, from_id)
+    to_id = _next_id(root, transfer_id)
+
+    from_transaction = etree.SubElement(from_transactions, 'account-transaction', id=str(from_id))
+    _fill_common_transaction(from_transaction, candidate, security=None, shares=Decimal('0'))
+    cross_entry = etree.SubElement(from_transaction, 'crossEntry', {'class': 'account-transfer', 'id': str(transfer_id)})
+    etree.SubElement(cross_entry, 'accountFrom', reference=from_account.get('id'))
+    etree.SubElement(cross_entry, 'transactionFrom', reference=str(from_id))
+    etree.SubElement(cross_entry, 'accountTo', reference=to_account.get('id'))
+    to_transaction = etree.SubElement(cross_entry, 'transactionTo', id=str(to_id))
+    to_candidate = replace(candidate, currency=candidate.to_currency or candidate.currency, gross_amount=(candidate.to_amount or Decimal('0')) - candidate.fee)
+    _fill_common_transaction(to_transaction, to_candidate, security=None, shares=Decimal('0'))
+    etree.SubElement(to_transaction, 'crossEntry', {'class': 'account-transfer', 'reference': str(transfer_id)})
+    _append_tail_transaction_fields(to_transaction, 'TRANSFER_IN')
+    _append_gross_value_unit(from_transaction, candidate)
+    _append_fee_units(to_transaction, to_candidate)
+    _append_tail_transaction_fields(from_transaction, 'TRANSFER_OUT')
+    etree.SubElement(to_transactions, 'account-transaction', reference=str(to_id))
+
+
+def _append_gross_value_unit(transaction: etree._Element, candidate: ImportCandidate) -> None:
+    units = etree.SubElement(transaction, 'units')
+    unit = etree.SubElement(units, 'unit', type='GROSS_VALUE')
+    etree.SubElement(unit, 'amount', currency=candidate.currency, amount=str(_money(candidate.gross_amount)))
+    if candidate.to_currency and candidate.to_amount:
+        etree.SubElement(unit, 'forex', currency=candidate.to_currency, amount=str(_money(candidate.to_amount)))
+        exchange_rate = candidate.gross_amount / candidate.to_amount
+        etree.SubElement(unit, 'exchangeRate').text = str(exchange_rate.normalize())
 
 
 def _trade_amount(candidate: ImportCandidate) -> Decimal:
