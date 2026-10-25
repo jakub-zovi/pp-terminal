@@ -92,6 +92,22 @@ def test_import_transactions_skips_duplicate_on_second_run(tmp_path: Path) -> No
     assert 'to_import: 0' in second.output
 
 
+def test_import_transactions_ibkr_skips_cash_fx_rows(tmp_path: Path) -> None:
+    runner = CliRunner()
+    xml_file = Path('tests/fixtures/import_base.ids.xml')
+    csv_file = Path('tests/fixtures/broker_import/ibkr_trade_with_fx.csv')
+    output_file = tmp_path / 'imported.xml'
+
+    result = runner.invoke(app, [
+        '--file', str(xml_file), '--no-cache', 'import', 'transactions', str(csv_file),
+        '--portfolio-account', 'Test Depot', '--cash-account', 'Test Cash', '--output', str(output_file), '--dry-run'
+    ])
+
+    assert result.exit_code == 0, result.output
+    assert 'parsed: 1' in result.output
+    assert 'to_import: 1' in result.output
+
+
 def test_import_transactions_xtb_parses_shares_with_ticker_in_comment(tmp_path: Path) -> None:
     runner = CliRunner()
     xml_file = Path('tests/fixtures/import_base.ids.xml')

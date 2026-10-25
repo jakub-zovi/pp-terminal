@@ -17,6 +17,8 @@ def parse_csv(path: Path) -> list[ImportCandidate]:
         for row in csv.DictReader(csv_file):
             if row.get('TransactionType') != 'ExchTrade' or row.get('Buy/Sell') not in {'BUY', 'SELL'}:
                 continue
+            if row.get('AssetClass') == 'CASH':
+                continue  # currency conversion (e.g. EUR.CZK), not a security trade
             quantity = Decimal(row['Quantity'])
             trade_type = 'BUY' if quantity > 0 else 'SELL'
             trade_money = abs(Decimal(row.get('TradeMoney') or row.get('Proceeds') or '0'))
