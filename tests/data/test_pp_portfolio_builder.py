@@ -30,6 +30,7 @@ from pp_terminal.exceptions import InputError
 from pp_terminal.data.pp_portfolio_builder import PpPortfolioBuilder, CachedPpPortfolioBuilder
 from pp_terminal.data.ppxml2db_wrapper import Ppxml2dbWrapper, DB_NAME_IN_MEMORY
 from pp_terminal.domain.portfolio_snapshot import PortfolioSnapshot
+from pp_terminal.domain.realized_gains import calculate_realized_gains
 from pp_terminal.domain.schemas import TransactionType
 
 EXPECTED_AMOUNT_SIGNS = {
@@ -330,3 +331,40 @@ def test_transfer_target_account_from_cross_entry(request: TopRequest) -> None: 
     buy = transactions[transactions['type'] == TransactionType.BUY.value]
     assert pd.isna(buy.iloc[0]['transferTargetAccount'])
     assert pd.isna(buy.iloc[0]['transferTargetShares'])
+
+
+def test_securities_account_transactions_ignore_forex_unit_for_currency(request: TopRequest) -> None:  # pylint: disable=unused-argument
+    """A security traded through a EUR depot carries a CZK forex annotation on some legs but not
+    others (e.g. a manually entered sale missing its GROSS_VALUE unit). The account-booked EUR
+    amount, not the informational forex side, must be used consistently for every leg, so FIFO
+    lots and disposals of the same security never get split across two currencies."""
+    db = Ppxml2dbWrapper(dbname=DB_NAME_IN_MEMORY)
+    conn = db.connection
+    conn.executescript("""
+        INSERT INTO property(name, value) VALUES ('baseCurrency', 'EUR');
+        INSERT INTO account(_id, uuid, type, name, updatedAt, _xmlid, _order) VALUES
+            (1, 'depot1', 'portfolio', 'Depot 1', '2020', 1, 1);
+        INSERT INTO security(_id, uuid, name, currency, updatedAt) VALUES
+            (1, 'sec1', 'Kofola-like', 'CZK', '2020');
+        INSERT INTO xact(_id, uuid, acctype, account, date, currency, amount, fees, security, shares, type, updatedAt, _xmlid, _order) VALUES
+            (1, 'x-buy', 'portfolio', 'depot1', '2023-01-15', 'EUR', 10000, 0, 'sec1', 1000000000, 'BUY', '2020', 1, 1),
+            (2, 'x-sell-forex', 'portfolio', 'depot1', '2023-06-15', 'EUR', 6000, 0, 'sec1', 500000000, 'SELL', '2023', 2, 2),
+            (3, 'x-sell-plain', 'portfolio', 'depot1', '2023-07-15', 'EUR', 5000, 0, 'sec1', 500000000, 'SELL', '2023', 3, 3);
+        INSERT INTO xact_unit(xact, type, amount, currency, forex_amount, forex_currency) VALUES
+            ('x-buy', 'GROSS_VALUE', 10000, 'EUR', 240000, 'CZK'),
+            ('x-sell-forex', 'GROSS_VALUE', 6000, 'EUR', 140000, 'CZK');
+    """)
+    conn.commit()
+
+    db.open = lambda _: None  # type: ignore  # DB already seeded, skip XML parsing
+    portfolio = PpPortfolioBuilder(db).construct(Path('unused.xml'))
+
+    transactions = portfolio.securities_account_transactions
+    assert transactions['currency'].unique().tolist() == ['EUR']
+
+    gains = calculate_realized_gains(transactions)
+    assert list(gains.index) == [('sec1', 'EUR')]
+    assert gains.loc[('sec1', 'EUR'), 'sharesDisposed'] == pytest.approx(10.0)
+    assert gains.loc[('sec1', 'EUR'), 'grossProceeds'] == pytest.approx(110.0)
+    assert gains.loc[('sec1', 'EUR'), 'costBasis'] == pytest.approx(100.0)
+    assert gains.loc[('sec1', 'EUR'), 'capitalGain'] == pytest.approx(10.0)

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Deposit account balances were reported in the foreign currency of a transaction's exchange-rate unit (e.g. a CZK or USD leg of a currency conversion) instead of the account currency, and fees were subtracted twice from cash amounts that are already net. This affected `view accounts`, `view cash-flows`, `simulate interest` and the balance validation rules for every account with forex transactions
+- Securities-account transactions preferred the informational forex leg of a `GROSS_VALUE` unit over the account-booked currency/amount. When a security had some legs with a forex annotation and others without (e.g. a manually entered sale missing its `GROSS_VALUE` unit), its buys and sells got split across two currencies with mismatched FIFO lots, fabricating large bogus gains/losses. This affected `view realized-gains` and any cost-basis calculation (`simulate pmt`, `simulate share-sell`) for securities with inconsistent forex annotations
 
 ### Removed
 
