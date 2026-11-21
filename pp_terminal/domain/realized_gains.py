@@ -119,12 +119,15 @@ def calculate_realized_gains(transactions: pd.DataFrame) -> pd.DataFrame:  # pyl
 
         key = (security_id, currency)
         unmatched, basis, _ = _consume(lots, account_id, security_id, shares)
-        proceeds = amount if tx_type == 'SELL' else 0.0
+        # DELIVERY_OUTBOUND covers both network-fee dust (amount == 0) and genuine disposals
+        # (e.g. spending crypto, which Portfolio Performance also books as DELIVERY_OUTBOUND
+        # with a real amount) - treat it the same as SELL rather than always zeroing proceeds.
+        proceeds = amount + fees if tx_type in _DISPOSAL_TYPES else 0.0
         bucket = totals[key]
         bucket['grossProceeds'] += proceeds
         bucket['costBasis'] += basis
         bucket['capitalGain'] += proceeds - basis
-        bucket['salesFees'] += fees if tx_type == 'SELL' else 0.0
+        bucket['salesFees'] += fees if tx_type in _DISPOSAL_TYPES else 0.0
         bucket['sharesDisposed'] += shares - unmatched
         bucket['unmatchedShares'] += unmatched
 

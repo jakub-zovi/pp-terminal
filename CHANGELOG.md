@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Deposit account balances were reported in the foreign currency of a transaction's exchange-rate unit (e.g. a CZK or USD leg of a currency conversion) instead of the account currency, and fees were subtracted twice from cash amounts that are already net. This affected `view accounts`, `view cash-flows`, `simulate interest` and the balance validation rules for every account with forex transactions
 - Securities-account transactions preferred the informational forex leg of a `GROSS_VALUE` unit over the account-booked currency/amount. When a security had some legs with a forex annotation and others without (e.g. a manually entered sale missing its `GROSS_VALUE` unit), its buys and sells got split across two currencies with mismatched FIFO lots, fabricating large bogus gains/losses. This affected `view realized-gains` and any cost-basis calculation (`simulate pmt`, `simulate share-sell`) for securities with inconsistent forex annotations
+- `view realized-gains` understated proceeds on every disposal that carried a transaction fee: Portfolio Performance's top-level `<amount>` on a SELL/DELIVERY_OUTBOUND is already net of fee, same as on a BUY, but only the BUY side added the fee back when reconstructing the true cash value
+- `view realized-gains` always zeroed proceeds on `DELIVERY_OUTBOUND` transactions, even when they carried a real amount (e.g. spending crypto directly, not just network-fee dust), silently booking the full cost basis of such disposals as a loss
 
 ### Removed
 
